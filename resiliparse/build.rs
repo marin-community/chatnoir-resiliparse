@@ -19,7 +19,7 @@ use std::path::PathBuf;
 extern crate bindgen;
 
 fn main() {
-    let arch = consts::ARCH.replace("86_", "");
+    let arch = consts::ARCH.replace("x86_64", "x64").replace("aarch64", "arm64");
     let os = consts::OS.replace("macos", "osx");
     let mut vcpkg_dir = PathBuf::from(format!("../vcpkg_installed/{}-{}", arch, os));
     vcpkg_dir = fs::canonicalize(vcpkg_dir.clone()).unwrap_or(vcpkg_dir);

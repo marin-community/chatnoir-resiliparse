@@ -98,6 +98,7 @@ def test_bulk_actions():
 
 
 @pytest.mark.slow
+@pytest.mark.filterwarnings('ignore::pytest.PytestUnhandledThreadExceptionWarning')
 def test_bulk_index_with_error():
     # With client error
     global MOCK_RETURN_CODE
@@ -134,6 +135,7 @@ def test_bulk_index_with_error():
 
 
 @pytest.mark.slow
+@pytest.mark.filterwarnings('ignore::pytest.PytestUnhandledThreadExceptionWarning')
 def test_bulk_kv_pairs():
         docs = [
             ('doc1', {'field': 'value'}),

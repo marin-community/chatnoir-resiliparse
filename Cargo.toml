@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
+    "fastwarc",
     "resiliparse",
     "resiliparse-py/resiliparse/parse/_html_rs",
-    "fastwarc",
 ]
 
 [workspace.package]

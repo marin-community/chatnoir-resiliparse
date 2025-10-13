@@ -51,7 +51,7 @@ jobs:
         if: runner.os == 'macOS' || runner.os == 'Windows'
         with:
           path: ./vcpkg_installed
-          key: ${{ runner.os }}-vcpkg-19     # INCREMENT ME!!
+          key: ${{ runner.os }}-vcpkg-20     # INCREMENT ME!!
 
       - name: Install Vcpkg Dependencies
         if: (runner.os == 'macOS' || runner.os == 'Windows') && steps.cache-vcpkg.outputs.cache-hit != 'true'
@@ -73,7 +73,7 @@ jobs:
             ./vcpkg/vcpkg install --triplet=arm64-osx --x-install-root vcpkg_installed2
             cp -a vcpkg_installed2/* vcpkg_installed/
             rm -r vcpkg_installed2
-
+          
           else
             echo "Unsupported platform." >&2
             exit 1

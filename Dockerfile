@@ -1,4 +1,4 @@
-ARG TARGET_ARCH
+ARG TARGET_ARCH=x86_64
 FROM quay.io/pypa/manylinux_2_28_${TARGET_ARCH}:latest
 
 RUN set -x \
@@ -28,6 +28,9 @@ RUN set -x \
       && mkdir /opt/libs \
       && mv vcpkg_installed/${TRIPLET}/* /opt/libs/) \
   && rm -rf /tmp/build
+
+RUN set -x \
+    && curl --proto '=https' --tlsv1.2 -Ssf https://sh.rustup.rs | sh -s -- -y
 
 ENV CPATH="/opt/libs/include"
 ENV LIBRARY_PATH="/opt/libs/lib"

@@ -45,8 +45,10 @@ __all__ = [
     'DOCUMENT_TYPE',
     'DOCUMENT_FRAGMENT',
     'NOTATION',
-    'LAST_ENTRY',
 ]
+
+# Cython 3.1 doesn't export enum members anymore
+globals().update(getattr(NodeType, '__members__'))
 
 
 cdef inline DOMNode _create_dom_node(HTMLTree tree, lxb_dom_node_t* dom_node):

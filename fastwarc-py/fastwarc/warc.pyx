@@ -68,6 +68,9 @@ __all__ = [
     'any_type',
 ]
 
+# Cython 3.1 doesn't export enum members anymore
+globals().update(getattr(WarcRecordType, '__members__'))
+
 
 cdef const char* _enum_record_type_to_str(WarcRecordType record_type) noexcept nogil:
     if record_type == warcinfo:

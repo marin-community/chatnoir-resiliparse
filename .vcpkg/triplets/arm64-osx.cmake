@@ -4,7 +4,7 @@ set(VCPKG_OSX_ARCHITECTURES arm64)
 
 set(VCPKG_CRT_LINKAGE dynamic)
 set(VCPKG_LIBRARY_LINKAGE dynamic)
-if(PORT MATCHES "abseil")
+if(PORT MATCHES "abseil" OR PORT MATCHES "re2")
     set(VCPKG_LIBRARY_LINKAGE static)
 endif()
 

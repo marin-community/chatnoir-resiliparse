@@ -12,15 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::env::consts;
+use std::fs;
 use std::path::PathBuf;
 
 extern crate bindgen;
 
 fn main() {
+    let arch = consts::ARCH.replace("86_", "");
+    let os = consts::OS.replace("macos", "osx");
+    let mut vcpkg_dir = PathBuf::from(format!("../vcpkg_installed/{}-{}", arch, os));
+    vcpkg_dir = fs::canonicalize(vcpkg_dir.clone()).unwrap_or(vcpkg_dir);
+
+    println!("cargo:rustc-link-search=native={}/lib", vcpkg_dir.to_str().unwrap());
     println!("cargo:rustc-link-lib=lexbor");
     println!("cargo:rerun-if-changed=src/third_party/lexbor.h");
+
     bindgen::Builder::default()
         .header("src/third_party/lexbor.h")
+        .clang_arg(format!("-I{}/include", vcpkg_dir.to_str().unwrap()))
         .allowlist_function("(lexbor|lxb)_.*")
         .allowlist_type("(LEXBOR|lexbor|lxb)_.*")
         .allowlist_var("(LEXBOR|LXB)_.*")

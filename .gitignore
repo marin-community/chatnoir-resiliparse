@@ -160,12 +160,12 @@ Thumbs.db
 .prof
 
 # Cython C/C++ and HTML profiling files
-fastwarc/**/*.c
-fastwarc/**/*.cpp
-fastwarc/**/*.html
-resiliparse/**/*.c
-resiliparse/**/*.cpp
-resiliparse/**/*.html
+fastwarc-py/**/*.c
+fastwarc-py/**/*.cpp
+fastwarc-py/**/*.html
+resiliparse-py/**/*.c
+resiliparse-py/**/*.cpp
+resiliparse-py/**/*.html
 
 # data directories
 wikidumps/

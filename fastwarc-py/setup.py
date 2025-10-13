@@ -119,10 +119,10 @@ def get_ext_modules():
 
 
 # Copy Resiliparse header files
-if os.path.isdir(os.path.join(ROOT_DIR, '..', 'resiliparse', 'resiliparse_inc')):
-    copytree(os.path.join(ROOT_DIR, '..', 'resiliparse', 'resiliparse_inc'),
+if os.path.isdir(os.path.join(ROOT_DIR, '..', 'resiliparse-py', 'resiliparse_inc')):
+    copytree(os.path.join(ROOT_DIR, '..', 'resiliparse-py', 'resiliparse_inc'),
              os.path.join(ROOT_DIR, 'resiliparse_inc'), dirs_exist_ok=True)
-    copytree(os.path.join(ROOT_DIR, '..', 'resiliparse', 'resiliparse_common'),
+    copytree(os.path.join(ROOT_DIR, '..', 'resiliparse-py', 'resiliparse_common'),
              os.path.join(ROOT_DIR, 'resiliparse_common'), dirs_exist_ok=True)
 
 setup(

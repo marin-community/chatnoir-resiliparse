@@ -49,7 +49,7 @@ pub enum NodeType {
 pub(crate) trait NodeInterfaceBaseImpl {
     fn new(tree: &Arc<HTMLDocument>, node: *mut lxb_dom_node_t) -> Self where Self: Sized;
     fn tree_(&self) -> Arc<HTMLDocument>;
-    fn node_ptr_(&self) -> ReentrantMutexGuard<*mut lxb_dom_node_t>;
+    fn node_ptr_(&self) -> ReentrantMutexGuard<'_, *mut lxb_dom_node_t>;
     fn reset_node_ptr_(&mut self);
 
     #[inline(always)]
@@ -171,8 +171,8 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         }
     }
 
-    fn as_noderef(&self) -> NodeRef;
-    fn as_noderef_mut(&mut self) -> NodeRefMut;
+    fn as_noderef(&self) -> NodeRef<'_>;
+    fn as_noderef_mut(&mut self) -> NodeRefMut<'_>;
     fn as_node(&self) -> Node;
     fn into_node(self) -> Node;
 
@@ -317,11 +317,11 @@ pub trait NodeInterface: NodeInterfaceBaseImpl + Debug + Display {
         unsafe { self.remove_child_unchecked(node) }
     }
 
-    fn iter(&self) -> NodeIterator where Self: Sized {
+    fn iter(&self) -> NodeIterator<'_> where Self: Sized {
         NodeIterator::new(self.as_noderef())
     }
 
-    fn iter_elements(&self) -> ElementIterator where Self: Sized {
+    fn iter_elements(&self) -> ElementIterator<'_> where Self: Sized {
         ElementIterator::new(self)
     }
 
@@ -521,8 +521,8 @@ pub trait Element: ParentNode + ChildNode + NonDocumentTypeChildNode {
     fn set_id(&mut self, id: &str);
     fn class_name(&self) -> Option<String>;
     fn set_class_name(&mut self, class_name: &str);
-    fn class_list(&self) -> DOMTokenList;
-    fn class_list_mut(&mut self) -> DOMTokenListMut;
+    fn class_list(&self) -> DOMTokenList<'_>;
+    fn class_list_mut(&mut self) -> DOMTokenListMut<'_>;
 
     fn attribute(&self, qualified_name: &str) -> Option<String>;
     fn attribute_or(&self, qualified_name: &str, default: &str) -> String;

@@ -225,7 +225,7 @@ macro_rules! define_node_type {
             }
 
             #[inline(always)]
-            fn node_ptr_(&self) -> ReentrantMutexGuard<*mut lxb_dom_node_t> {
+            fn node_ptr_(&self) -> ReentrantMutexGuard<'_, *mut lxb_dom_node_t> {
                 self.node.lock()
             }
 
@@ -237,12 +237,12 @@ macro_rules! define_node_type {
 
         impl NodeInterface for $Self {
             #[inline(always)]
-            fn as_noderef(&self) -> NodeRef {
+            fn as_noderef(&self) -> NodeRef<'_> {
                 NodeRef::$EnumType(self)
             }
 
             #[inline(always)]
-            fn as_noderef_mut(&mut self) -> NodeRefMut {
+            fn as_noderef_mut(&mut self) -> NodeRefMut<'_> {
                 NodeRefMut::$EnumType(self)
             }
 
@@ -676,7 +676,7 @@ impl Element for ElementNode {
         self.set_attribute("class", class_name);
     }
 
-    fn class_list(&self) -> DOMTokenList {
+    fn class_list(&self) -> DOMTokenList<'_> {
         DOMTokenList::new(self)
     }
 

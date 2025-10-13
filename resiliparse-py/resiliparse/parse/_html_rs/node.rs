@@ -15,9 +15,9 @@
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
 use pyo3::types::*;
-use resiliparse_common::parse::html::dom::node as node_impl;
-use resiliparse_common::parse::html::dom::iter as iter_impl;
-use resiliparse_common::parse::html::dom::traits::*;
+use resiliparse::parse::html::dom::node as node_impl;
+use resiliparse::parse::html::dom::iter as iter_impl;
+use resiliparse::parse::html::dom::traits::*;
 use crate::coll::*;
 use crate::exception::*;
 
@@ -612,8 +612,8 @@ impl ElementNode {
     }
 
     #[getter]
-    pub fn get_attribute_names(slf: PyRef<'_, Self>) -> Bound<'_, PyTuple> {
-        PyTuple::new_bound(slf.py(), Self::raw_node(&slf).attribute_names().into_iter())
+    pub fn get_attribute_names(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, PyTuple>> {
+        PyTuple::new(slf.py(), Self::raw_node(&slf).attribute_names().into_iter())
     }
 
     pub fn has_attribute(slf: PyRef<'_, Self>, qualified_name: &str) -> bool {
@@ -634,7 +634,7 @@ impl ElementNode {
     }
 
     #[getter]
-    pub fn attrs(slf: PyRef<'_, Self>) -> Bound<'_, PyTuple> {
+    pub fn attrs(slf: PyRef<'_, Self>) -> PyResult<Bound<'_, PyTuple>> {
         Self::get_attribute_names(slf)
     }
 

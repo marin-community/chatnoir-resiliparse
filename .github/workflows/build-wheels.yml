@@ -93,7 +93,7 @@ jobs:
       - name: Build FastWARC
         uses: pypa/cibuildwheel@v2.22.0
         with:
-          package-dir: fastwarc
+          package-dir: fastwarc-py
           output-dir: wheelhouse
         env:
           CIBW_TEST_COMMAND: python -m pytest --capture=sys --verbose {project}/tests/fastwarc
@@ -101,7 +101,7 @@ jobs:
       - name: Build Resiliparse
         uses: pypa/cibuildwheel@v2.22.0
         with:
-          package-dir: resiliparse
+          package-dir: resiliparse-py
           output-dir: wheelhouse
         env:
           CIBW_BEFORE_TEST: >-
@@ -180,10 +180,10 @@ jobs:
         run: python -m pip install build
 
       - name: Build FastWARC Source Dist
-        run: python -m build --sdist --outdir dist fastwarc
+        run: python -m build --sdist --outdir dist fastwarc-py
 
       - name: Build Resiliparse Source Dist
-        run: python -m build --sdist --outdir dist resiliparse
+        run: python -m build --sdist --outdir dist resiliparse-py
 
       - name: Upload Source Dists
         uses: actions/upload-artifact@v4

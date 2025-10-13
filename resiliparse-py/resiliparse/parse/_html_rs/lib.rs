@@ -23,8 +23,8 @@ use pyo3::prelude::*;
 macro_rules! init_mod_path {
     ($name: literal, $m: ident) => {
         // https://github.com/PyO3/pyo3/issues/759#issuecomment-2282197848
-        Python::with_gil(|py| {
-            py.import_bound("sys")?
+        Python::attach(|py| {
+            py.import("sys")?
                 .getattr("modules")?
                 .set_item(concat!("resiliparse.parse._html_rs.", $name), $m)
         })

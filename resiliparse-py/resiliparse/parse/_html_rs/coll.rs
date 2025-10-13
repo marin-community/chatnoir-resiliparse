@@ -15,9 +15,9 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::*;
 use pyo3::types::*;
-use resiliparse_common::parse::html::dom::coll as coll_impl;
-use resiliparse_common::parse::html::dom::coll::{DOMTokenListInterface, DOMTokenListMutInterface};
-use resiliparse_common::parse::html::dom::traits::NodeInterface;
+use resiliparse::parse::html::dom::coll as coll_impl;
+use resiliparse::parse::html::dom::coll::{DOMTokenListInterface, DOMTokenListMutInterface};
+use resiliparse::parse::html::dom::traits::NodeInterface;
 use crate::exception::CSSParserException;
 use super::node::*;
 
@@ -63,7 +63,7 @@ fn get_tuple_slice<'py>(tup: &Bound<'py, PyTuple>, index_or_slice: &Bound<'py, P
         let e = tup.get_slice(i.start as usize, i.stop as usize)
             .iter()
             .step_by(i.step.abs() as usize);
-        Ok(PyTuple::new_bound(index_or_slice.py(), e).into_any())
+        Ok(PyTuple::new(index_or_slice.py(), e)?.into_any())
     } else if let Ok(i) = index_or_slice.downcast::<PyInt>() {
         if i.lt(i)? {
             i.add(tup.len())?;
@@ -94,7 +94,7 @@ impl NodeList {
             NL::NamedNodeMap(l) => l.values().into_iter()
                 .map(|n| create_upcast_node(py, n.into_node()).unwrap()).collect()
         };
-        Ok(PyList::new_bound(py, items))
+        PyList::new(py, items)
     }
 
     pub fn __len__(&self) -> usize {
@@ -252,8 +252,8 @@ impl DOMTokenList {
         self.list.set_value(value)
     }
 
-    pub fn values<'py>(&self, py: Python<'py>) -> Bound<'py, PyList> {
-        PyList::new_bound(py, self.list.iter())
+    pub fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        PyList::new(py, self.list.iter())
     }
 
     pub fn item(&self, index: usize) -> Option<String> {
@@ -296,7 +296,7 @@ impl DOMTokenList {
     }
 
     pub fn __getitem__<'py>(&self, index_or_slice: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        get_tuple_slice(&PyTuple::new_bound(index_or_slice.py(), self.list.values().into_iter()), index_or_slice)
+        get_tuple_slice(&PyTuple::new(index_or_slice.py(), self.list.values().into_iter())?, index_or_slice)
     }
 
     pub fn __len__(&self) -> usize {
@@ -308,6 +308,6 @@ impl DOMTokenList {
     }
 
     pub fn __repr__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        Ok(self.values(py).call_method0("__repr__")?)
+        Ok(self.values(py)?.call_method0("__repr__")?)
     }
 }

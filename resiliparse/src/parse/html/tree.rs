@@ -195,7 +195,7 @@ unsafe impl Sync for HTMLDocument {}
 
 
 impl HTMLDocument {
-    pub(crate) fn doc_ptr(&self) -> ReentrantMutexGuard<*mut lxb_html_document_t> {
+    pub(crate) fn doc_ptr(&self) -> ReentrantMutexGuard<'_, *mut lxb_html_document_t> {
         self.html_document.lock()
     }
 

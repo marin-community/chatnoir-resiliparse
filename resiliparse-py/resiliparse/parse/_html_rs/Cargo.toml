@@ -7,7 +7,7 @@ path = "lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-resiliparse-common = { path = "../../../resiliparse-common" }
+resiliparse = { path = "../../../../resiliparse" }
 pyo3.workspace = true
 #pyo3-stub-gen.workspace = true
 

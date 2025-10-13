@@ -1,14 +1,11 @@
 [package]
-name = "resiliparse"
+name = "fastwarc"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
-description.workspace = true
 authors.workspace = true
 documentation.workspace = true
+description = "A high-performance WARC parsing library for Python written in C++/Cython."
 
-[dependencies]
-parking_lot = "0.12.5"
-
-[build-dependencies]
-bindgen.workspace = true
+[lib]
+crate-type = ["lib"]

@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=75.0.0", "Cython>=0.29.33", "setuptools-rust>=1.10"]
+requires = ["setuptools>=65.0", "Cython>=0.29.33"]
+#requires = ["setuptools>=75.0.0", "Cython>=0.29.33", "setuptools-rust>=1.10"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -53,9 +54,9 @@ resiliparse = "resiliparse.cli:main"
 [tool.setuptools.packages.find]
 include = ["resiliparse*"]
 
-[[tool.setuptools-rust.ext-modules]]
-path = "resiliparse_rust/resiliparse-py/parse/_html_rs/Cargo.toml"
-target = "resiliparse.parse._html_rs"
+#[[tool.setuptools-rust.ext-modules]]
+#path = "resiliparse/parse/_html_rs/Cargo.toml"
+#target = "resiliparse.parse._html_rs"
 
 [tool.cibuildwheel]
 archs = "native"

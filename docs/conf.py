@@ -10,23 +10,25 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+
+import datetime
 import os
 import re
 import sys
 
 src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.extend([
-    os.path.join(src_dir, 'resiliparse'),
-    os.path.join(src_dir, 'fastwarc')
+    os.path.join(src_dir, 'resiliparse-py'),
+    os.path.join(src_dir, 'fastwarc-py')
 ])
 
 # -- Project information -----------------------------------------------------
 
 project = 'ChatNoir Resiliparse'
-copyright = '2023, Janek Bevendorff'
+copyright = f'2021-{datetime.datetime.today().year}, Janek Bevendorff'
 author = 'Janek Bevendorff'
 release = re.search(r'^version\s*=\s*"([\d.]+)"$',
-                    open(os.path.join(src_dir, 'resiliparse', 'pyproject.toml')).read(), re.M).group(1)
+                    open(os.path.join(src_dir, 'resiliparse-py', 'pyproject.toml')).read(), re.M).group(1)
 master_doc = 'index'
 
 # -- General configuration ---------------------------------------------------

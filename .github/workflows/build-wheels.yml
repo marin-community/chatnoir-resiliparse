@@ -209,8 +209,8 @@ jobs:
       - name: Build Extensions
         run: |
           set -e
-          python${PYTHON_VERSION} -m pip install -e "fastwarc[all,test]"
-          python${PYTHON_VERSION} -m pip install -e "resiliparse[all,test]"
+          python${PYTHON_VERSION} -m pip install -e "fastwarc-py[all,test]"
+          python${PYTHON_VERSION} -m pip install -e "resiliparse-py[all,test]"
 
       - name: Run Tests
         run: |
@@ -234,8 +234,8 @@ jobs:
         run: |
           set -e
           python${PYTHON_VERSION} -m pip install cython codecov-cli
-          python${PYTHON_VERSION} -m pip install -e "fastwarc[all,test]"
-          python${PYTHON_VERSION} -m pip install -e "resiliparse[all,test]"
+          python${PYTHON_VERSION} -m pip install -e "fastwarc-py[all,test]"
+          python${PYTHON_VERSION} -m pip install -e "resiliparse-py[all,test]"
 
       - name: Run Tests
         run: python${PYTHON_VERSION} -m pytest --cov --cov-report xml --junitxml=report.junit.xml tests/

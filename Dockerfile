@@ -5,7 +5,7 @@ RUN set -x \
     && yum install -y \
         curl \
         git \
-        gcc-toolset-13-libasan-devel \
+        gcc-toolset-14-libasan-devel \
         ninja-build \
         tar \
         unzip \

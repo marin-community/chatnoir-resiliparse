@@ -17,7 +17,10 @@ use std::collections::HashMap;
 use std::io;
 use std::path::Iter;
 use std::sync::Arc;
+use encoding::{Encoding, DecoderTrap};
+use encoding::all::WINDOWS_1252;
 use parking_lot::RwLock;
+use uuid::Uuid;
 
 
 /// WARC record type enum
@@ -153,10 +156,16 @@ impl From<&str> for CaseInsensitiveKey {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum HeaderEncoding {
+    Unicode,
+    Latin1
+}
+
 /// Dict-like type representing a WARC or HTTP header block.
 #[derive(Debug, Clone)]
 pub struct HeaderMap {
-    encoding: String,
+    encoding: HeaderEncoding,
     status_line: Vec<u8>,
     headers: Vec<(Vec<u8>, Vec<u8>)>,
 }
@@ -167,7 +176,7 @@ impl HeaderMap {
     /// # Arguments
     ///
     /// * `encoding` - Header source encoding
-    pub fn new(encoding: impl Into<String>) -> Self {
+    pub fn new(encoding: HeaderEncoding) -> Self {
         HeaderMap {
             encoding: encoding.into(),
             status_line: Vec::new(),
@@ -176,8 +185,8 @@ impl HeaderMap {
     }
 
     /// Get the header encoding.
-    pub fn encoding(&self) -> &str {
-        &self.encoding
+    pub fn encoding(&self) -> HeaderEncoding {
+        self.encoding.clone()
     }
 
     /// Get the header status line.
@@ -210,9 +219,17 @@ impl HeaderMap {
         String::from_utf8_lossy(parts.next()?).parse::<u16>().ok()
     }
 
+    fn decode(&self, byte_str: &[u8]) -> String {
+        match &self.encoding {
+            HeaderEncoding::Unicode => String::from_utf8_lossy(byte_str).to_string(),
+            HeaderEncoding::Latin1 => WINDOWS_1252.decode(byte_str, DecoderTrap::Ignore)
+                .unwrap_or_else(|_| String::new())
+        }
+    }
+
     /// HTTP reason phrase.
     /// Returns None if the header block is not an HTTP header block or no reason phrase was given.
-    pub fn reason_phrase(&self) -> Option<borrow::Cow<'_, str>> {
+    pub fn reason_phrase(&self) -> Option<String> {
         if !self.status_line.starts_with(b"HTTP/") {
             return None;
         }
@@ -220,7 +237,7 @@ impl HeaderMap {
         // Skip HTTP/ and status code
         parts.next()?;
         parts.next()?;
-        Some(String::from_utf8_lossy(parts.next()?))
+        Some(self.decode(parts.next()?))
     }
 
     /// Get value for (case-insensitive) header key a string.
@@ -230,7 +247,7 @@ impl HeaderMap {
     ///
     /// * `key` - Header key
     pub fn get(&self, key: &str) -> Option<String> {
-        Some(String::from_utf8_lossy(&self.get_bytes(key.as_bytes())?).to_string())
+        Some(self.decode(&self.get_bytes(key.as_bytes())?))
     }
 
     /// Get value for (case-insensitive) header key as bytes.
@@ -334,21 +351,21 @@ impl HeaderMap {
     pub fn items(&self) -> impl Iterator<Item = (String, String)> + use<'_> {
         self.headers
             .iter()
-            .map(|(k, v)| (String::from_utf8_lossy(k).to_string(), String::from_utf8_lossy(v).to_string()))
+            .map(|(k, v)| (self.decode(k), self.decode(v)))
     }
 
     /// Iterator of header keys.
     pub fn keys(&self) -> impl Iterator<Item = String> + use<'_> {
         self.headers
             .iter()
-            .map(|(k, _)| String::from_utf8_lossy(k).to_string())
+            .map(|(k, _)| self.decode(k))
     }
 
     /// Iterator of header values.
     pub fn values(&self) -> impl Iterator<Item = String> + use<'_> {
         self.headers
             .iter()
-            .map(|(_, v)| String::from_utf8_lossy(v).to_string())
+            .map(|(_, v)| self.decode(v))
     }
 
     /// Headers as a series of String tuples.
@@ -359,15 +376,14 @@ impl HeaderMap {
         self.items().collect()
     }
 
-    /// Headers as a HashMap.
+    /// Headers as a String HashMap.
     ///
     /// If multiple headers have the same key, the values will be concatenated with `","`.
     pub fn to_map(&self) -> HashMap<CaseInsensitiveKey, String> {
         let mut map: HashMap<CaseInsensitiveKey, String> = HashMap::new();
         self.items()
             .for_each(|(k, v)| {
-                let k = CaseInsensitiveKey::new(k);
-                map.entry(k).and_modify(|v_| {
+                map.entry(CaseInsensitiveKey::new(k)).and_modify(|v_| {
                     v_.push(',');
                     v_.push_str(&v);
                 }).or_insert(v);
@@ -426,342 +442,344 @@ impl HeaderMap {
     }
 }
 
-// TODO: Unchecked conversion AI slop from here on:
 
-// /// A WARC record.
-// ///
-// /// WARC records are cloneable, but cloning will "freeze" the WARC record.
-// #[derive(Debug, Clone)]
-// pub struct WarcRecord {
-//     record_type: WarcRecordType,
-//     headers: HeaderMap,
-//     is_http: bool,
-//     http_parsed: bool,
-//     http_charset: Option<String>,
-//     http_headers: Option<HeaderMap>,
-//     content_length: usize,
-//     content: Vec<u8>,
-//     stream_pos: usize,
-//     stale: bool,
-//     frozen: bool,
-// }
-//
-// impl WarcRecord {
-//     /// Create a new empty WARC record.
-//     pub fn new() -> Self {
-//         WarcRecord {
-//             record_type: WarcRecordType::Unknown,
-//             headers: HeaderMap::new("utf-8"),
-//             is_http: false,
-//             http_parsed: false,
-//             http_charset: None,
-//             http_headers: None,
-//             content_length: 0,
-//             content: Vec::new(),
-//             stream_pos: 0,
-//             stale: false,
-//             frozen: false,
-//         }
-//     }
-//
-//     /// Record type (same as `headers['WARC-Type']`).
-//     pub fn record_type(&self) -> WarcRecordType {
-//         self.record_type
-//     }
-//
-//     /// Set record type.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `record_type` - Record type
-//     pub fn set_record_type(&mut self, record_type: WarcRecordType) {
-//         self.record_type = record_type;
-//         self.headers.set_header(b"WARC-Type", record_type.to_str().as_bytes());
-//     }
-//
-//     /// Record ID (same as `headers['WARC-Record-ID']`).
-//     pub fn record_id(&self) -> Option<String> {
-//         self.headers.get("WARC-Record-ID")
-//     }
-//
-//     /// WARC record headers.
-//     pub fn headers(&self) -> &HeaderMap {
-//         &self.headers
-//     }
-//
-//     /// WARC record headers (mutable).
-//     pub fn headers_mut(&mut self) -> &mut HeaderMap {
-//         &mut self.headers
-//     }
-//
-//     /// Whether record is an HTTP record.
-//     ///
-//     /// Modifying this property will also affect the `Content-Type` of this record.
-//     pub fn is_http(&self) -> bool {
-//         self.is_http
-//     }
-//
-//     /// Set whether this record is an HTTP record.
-//     pub fn set_is_http(&mut self, is_http: bool) {
-//         self.is_http = is_http;
-//         if self.is_http {
-//             let content_type = match self.record_type {
-//                 WarcRecordType::Request => b"application/http; msgtype=request",
-//                 WarcRecordType::Response => b"application/http; msgtype=response",
-//                 _ => b"application/http",
-//             };
-//             self.headers.set_header(b"Content-Type", content_type);
-//         }
-//     }
-//
-//     /// Whether HTTP headers have been parsed.
-//     pub fn is_http_parsed(&self) -> bool {
-//         self.http_parsed
-//     }
-//
-//     /// HTTP headers if record is an HTTP record and HTTP headers have been parsed yet.
-//     pub fn http_headers(&self) -> Option<&HeaderMap> {
-//         self.http_headers.as_ref()
-//     }
-//
-//     /// Plain HTTP Content-Type without additional fields such as `charset=`.
-//     pub fn http_content_type(&self) -> Option<String> {
-//         if !self.http_parsed {
-//             return None;
-//         }
-//
-//         let http_headers = self.http_headers.as_ref()?;
-//         let content_type = http_headers.get("content-type")?;
-//
-//         content_type
-//             .split(';')
-//             .next()
-//             .map(|s| s.trim().to_string())
-//     }
-//
-//     /// HTTP charset/encoding as returned by the server or `None` if no valid charset is set.
-//     ///
-//     /// A returned string is guaranteed to be a valid encoding name.
-//     pub fn http_charset(&self) -> Option<&str> {
-//         self.http_charset.as_deref()
-//     }
-//
-//     /// Remaining WARC record length in bytes (not necessarily the same as the `Content-Length` header).
-//     pub fn content_length(&self) -> usize {
-//         self.content_length
-//     }
-//
-//     /// Get the record content as a byte slice.
-//     pub fn content(&self) -> &[u8] {
-//         &self.content
-//     }
-//
-//     /// WARC record start offset in the original (uncompressed) stream.
-//     pub fn stream_pos(&self) -> usize {
-//         self.stream_pos
-//     }
-//
-//     /// Whether the record has been frozen.
-//     pub fn is_frozen(&self) -> bool {
-//         self.frozen
-//     }
-//
-//     /// Whether the record is stale.
-//     pub fn is_stale(&self) -> bool {
-//         self.stale
-//     }
-//
-//     /// Initialize mandatory headers in a fresh WARC record instance.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `content_length` - WARC record body length in bytes
-//     /// * `record_type` - WARC-Type
-//     /// * `record_urn` - WARC-Record-ID as URN without `'<'`, `'>'` (if unset, a random URN will be generated)
-//     pub fn init_headers(
-//         &mut self,
-//         content_length: usize,
-//         record_type: Option<WarcRecordType>,
-//         record_urn: Option<&[u8]>,
-//     ) {
-//         let urn = record_urn
-//             .map(|u| u.to_vec())
-//             .unwrap_or_else(|| format!("urn:uuid:{}", uuid::Uuid::new_v4()).into_bytes());
-//
-//         let rt = record_type.unwrap_or(self.record_type);
-//         self.record_type = match rt {
-//             WarcRecordType::AnyType | WarcRecordType::NoType => WarcRecordType::Unknown,
-//             _ => rt,
-//         };
-//
-//         self.headers.clear();
-//         self.headers.set_status_line(b"WARC/1.1");
-//         self.headers.append_header(b"WARC-Type", self.record_type.to_str().as_bytes());
-//
-//         let date = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-//         self.headers.append_header(b"WARC-Date", date.as_bytes());
-//
-//         let record_id = format!("<{}>", String::from_utf8_lossy(&urn));
-//         self.headers.append_header(b"WARC-Record-ID", record_id.as_bytes());
-//
-//         self.headers.append_header(b"Content-Length", content_length.to_string().as_bytes());
-//         self.content_length = content_length;
-//     }
-//
-//     /// Set WARC body.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `content` - Body as bytes
-//     pub fn set_content(&mut self, content: Vec<u8>) {
-//         self.content_length = content.len();
-//         self.content = content;
-//         self.headers.set_header(b"Content-Length", self.content_length.to_string().as_bytes());
-//         self.stale = false;
-//     }
-//
-//     /// Parse HTTP headers and advance content reader.
-//     ///
-//     /// It is safe to call this method multiple times, even if the record is not an HTTP record.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `strict_mode` - Enforce `CRLF` line endings, setting this to `false` will allow plain `LF` also
-//     pub fn parse_http(&mut self, strict_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
-//         if self.http_parsed || !self.is_http {
-//             return Ok(());
-//         }
-//
-//         let mut http_headers = HeaderMap::new("iso-8859-15");
-//         let mut cursor = std::io::Cursor::new(&self.content);
-//
-//         let bytes_consumed = parse_header_block(&mut cursor, &mut http_headers, true, strict_mode)?;
-//
-//         // Update content to skip HTTP headers
-//         self.content = self.content[bytes_consumed..].to_vec();
-//         self.content_length = self.content.len();
-//
-//         self.http_headers = Some(http_headers);
-//         self.http_parsed = true;
-//
-//         // Parse charset if present
-//         if let Some(ref headers) = self.http_headers {
-//             if let Some(content_type) = headers.get("content-type") {
-//                 if let Some(charset_pos) = content_type.to_lowercase().find("charset=") {
-//                     let charset_start = charset_pos + 8;
-//                     let charset = content_type[charset_start..]
-//                         .split(';')
-//                         .next()
-//                         .unwrap_or("")
-//                         .trim()
-//                         .to_lowercase();
-//
-//                     // Validate charset
-//                     if !charset.is_empty() {
-//                         self.http_charset = Some(charset);
-//                     }
-//                 }
-//             }
-//         }
-//
-//         Ok(())
-//     }
-//
-//     /// "Freeze" a record by baking in the remaining payload stream contents.
-//     ///
-//     /// Freezing a record makes the `WarcRecord` instance copyable and reusable by decoupling
-//     /// it from the underlying raw WARC stream. Instead of reading directly from the raw stream, a
-//     /// frozen record maintains an internal buffer the size of the remaining payload stream contents
-//     /// at the time of calling `freeze()`.
-//     ///
-//     /// Freezing a record will advance the underlying raw stream.
-//     pub fn freeze(&mut self) {
-//         self.frozen = true;
-//     }
-//
-//     /// Write WARC record onto a stream.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `writer` - Output stream
-//     ///
-//     /// # Returns
-//     ///
-//     /// Number of bytes written
-//     pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<usize> {
-//         let mut bytes_written = 0;
-//
-//         // Write WARC headers
-//         bytes_written += self.headers.write(writer)?;
-//         writer.write_all(b"\r\n")?;
-//         bytes_written += 2;
-//
-//         // Write HTTP headers if parsed
-//         if self.http_parsed {
-//             if let Some(ref http_headers) = self.http_headers {
-//                 bytes_written += http_headers.write(writer)?;
-//                 writer.write_all(b"\r\n")?;
-//                 bytes_written += 2;
-//             }
-//         }
-//
-//         // Write content
-//         writer.write_all(&self.content)?;
-//         bytes_written += self.content.len();
-//
-//         // Write record separator
-//         writer.write_all(b"\r\n\r\n")?;
-//         bytes_written += 4;
-//
-//         Ok(bytes_written)
-//     }
-//
-//     /// Verify whether record digest is valid.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `digest_str` - Digest string from header (e.g., "sha1:BASE32HASH")
-//     /// * `digest_type` - Type of digest (block or payload)
-//     ///
-//     /// # Returns
-//     ///
-//     /// `true` if digest exists and is valid
-//     pub fn verify_digest(&self, digest_str: &str, digest_type: DigestType) -> Result<bool, Box<dyn std::error::Error>> {
-//         let parts: Vec<&str> = digest_str.splitn(2, ':').collect();
-//         if parts.len() != 2 {
-//             return Ok(false);
-//         }
-//
-//         let algorithm = parts[0];
-//         let expected_digest = parts[1];
-//
-//         let data = match digest_type {
-//             DigestType::Block => &self.content,
-//             DigestType::Payload => {
-//                 // For payload, would need to skip HTTP headers
-//                 &self.content
-//             }
-//         };
-//
-//         let computed = match algorithm {
-//             "sha1" => {
-//                 use sha1::{Sha1, Digest};
-//                 let mut hasher = Sha1::new();
-//                 hasher.update(data);
-//                 base64::encode(hasher.finalize())
-//             }
-//             "md5" => {
-//                 use md5::{Md5, Digest};
-//                 let mut hasher = Md5::new();
-//                 hasher.update(data);
-//                 base64::encode(hasher.finalize())
-//             }
-//             _ => return Err(format!("Unsupported hash algorithm: {}", algorithm).into()),
-//         };
-//
-//         Ok(computed == expected_digest)
-//     }
-// }
+/// A WARC record.
+///
+/// WARC records are cloneable, but cloning will "freeze" the WARC record.
+#[derive(Debug, Clone)]
+pub struct WarcRecord {
+    record_type: WarcRecordType,
+    headers: HeaderMap,
+    is_http: bool,
+    http_parsed: bool,
+    http_charset: Option<String>,
+    http_headers: Option<HeaderMap>,
+    content_length: usize,
+    content: Vec<u8>,
+    stream_pos: usize,
+    stale: bool,
+    frozen: bool,
+}
+
+impl Default for WarcRecord {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WarcRecord {
+    /// Create a new empty WARC record.
+    pub fn new() -> Self {
+        WarcRecord {
+            record_type: WarcRecordType::Unknown,
+            headers: HeaderMap::new(HeaderEncoding::Unicode),
+            is_http: false,
+            http_parsed: false,
+            http_charset: None,
+            http_headers: None,
+            content_length: 0,
+            content: Vec::new(),
+            stream_pos: 0,
+            stale: false,
+            frozen: false,
+        }
+    }
+
+    /// Record type (same as `headers['WARC-Type']`).
+    pub fn record_type(&self) -> WarcRecordType {
+        self.record_type
+    }
+
+    /// Set record type.
+    ///
+    /// # Arguments
+    ///
+    /// * `record_type` - Record type
+    pub fn set_record_type(&mut self, record_type: WarcRecordType) {
+        self.record_type = record_type;
+        self.headers.set_bytes(b"WARC-Type", record_type.as_str().as_bytes());
+    }
+
+    /// Record ID (same as `headers['WARC-Record-ID']`).
+    pub fn record_id(&self) -> Option<String> {
+        self.headers.get("WARC-Record-ID")
+    }
+
+    /// WARC record headers.
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    /// WARC record headers (mutable).
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.headers
+    }
+
+    /// Whether record is an HTTP record.
+    pub fn is_http(&self) -> bool {
+        self.is_http
+    }
+
+    /// Set whether this record is an HTTP record.
+    /// Modifying this property will also affect the `Content-Type` of this record.
+    pub fn set_is_http(&mut self, is_http: bool) {
+        self.is_http = is_http;
+        if self.is_http {
+            self.headers.set_bytes(b"Content-Type", match self.record_type {
+                WarcRecordType::Request => b"application/http; msgtype=request",
+                WarcRecordType::Response => b"application/http; msgtype=response",
+                _ => b"application/http",
+            });
+        }
+    }
+
+    /// Whether HTTP headers have been parsed.
+    pub fn is_http_parsed(&self) -> bool {
+        self.http_parsed
+    }
+
+    /// HTTP headers if record is an HTTP record and HTTP headers have been parsed yet.
+    pub fn http_headers(&self) -> Option<&HeaderMap> {
+        self.http_headers.as_ref()
+    }
+
+    /// Plain HTTP Content-Type without additional fields such as `charset=`.
+    pub fn http_content_type(&self) -> Option<String> {
+        if !self.http_parsed {
+            return None;
+        }
+        self.http_headers.as_ref()?
+            .get("Content-Type")?
+            .split(";")
+            .next()
+            .map(|s| s.trim().to_string())
+    }
+
+    /// HTTP charset/encoding as returned by the server or `None` if no valid charset is set.
+    ///
+    /// A returned string is guaranteed to be a valid encoding name.
+    pub fn http_charset(&self) -> Option<&str> {
+        self.http_charset.as_deref()
+    }
+
+    /// Remaining WARC record length in bytes (not necessarily the same as the `Content-Length` header).
+    pub fn content_length(&self) -> usize {
+        self.content_length
+    }
+
+    /// Get the record content as a byte slice.
+    pub fn content(&self) -> &[u8] {
+        &self.content
+    }
+
+    /// WARC record start offset in the original (uncompressed) stream.
+    pub fn stream_pos(&self) -> usize {
+        self.stream_pos
+    }
+
+    /// Whether the record has been frozen.
+    pub fn is_frozen(&self) -> bool {
+        self.frozen
+    }
+
+    /// Whether the record is stale.
+    pub fn is_stale(&self) -> bool {
+        self.stale
+    }
+
+    /// Initialize mandatory headers in a fresh WARC record instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `content_length` - WARC record body length in bytes
+    /// * `record_type` - WARC-Type
+    /// * `record_urn` - WARC-Record-ID as URN without `'<'`, `'>'` (if unset, a random URN will be generated)
+    pub fn init_headers(
+        &mut self,
+        content_length: usize,
+        record_type: Option<WarcRecordType>,
+        record_urn: Option<&[u8]>,
+    ) {
+        let urn = match record_urn {
+            Some(urn) => urn.to_vec(),
+            None => format!("urn:uuid:{}", Uuid::new_v4()).into_bytes()
+        };
+
+        self.record_type = match record_type {
+            Some(WarcRecordType::AnyType) | Some(WarcRecordType::NoType) => WarcRecordType::Unknown,
+            Some(record_type) => record_type,
+            _ => WarcRecordType::NoType,
+        };
+
+        self.headers.clear();
+        self.headers.set_status_line(b"WARC/1.1");
+        self.headers.append_bytes(b"WARC-Type", self.record_type.as_str().as_bytes());
+
+        let date = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        self.headers.append_bytes(b"WARC-Date", date.as_bytes());
+
+        let record_id = format!("<{}>", String::from_utf8_lossy(&urn));
+        self.headers.append_bytes(b"WARC-Record-ID", record_id.as_bytes());
+
+        self.headers.append_bytes(b"Content-Length", content_length.to_string().as_bytes());
+        self.content_length = content_length;
+    }
+
+    /// Set WARC body.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - Body as bytes
+    pub fn set_content(&mut self, content: Vec<u8>) {
+        self.content_length = content.len();
+        self.content = content;
+        self.headers.set_bytes(b"Content-Length", self.content_length.to_string().as_bytes());
+        self.stale = false;
+    }
+    // TODO: Unchecked conversion AI slop from here on:
+
+    // /// Parse HTTP headers and advance content reader.
+    // ///
+    // /// It is safe to call this method multiple times, even if the record is not an HTTP record.
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `strict_mode` - Enforce `CRLF` line endings, setting this to `false` will allow plain `LF` also
+    // pub fn parse_http(&mut self, strict_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+    //     if self.http_parsed || !self.is_http {
+    //         return Ok(());
+    //     }
+    //
+    //     let mut http_headers = HeaderMap::new(HeaderEncoding::Latin1);
+    //     let mut cursor = io::Cursor::new(&self.content);
+    //
+    //     let bytes_consumed = parse_header_block(&mut cursor, &mut http_headers, true, strict_mode)?;
+    //
+    //     // Update content to skip HTTP headers
+    //     self.content = self.content[bytes_consumed..].to_vec();
+    //     self.content_length = self.content.len();
+    //
+    //     self.http_headers = Some(http_headers);
+    //     self.http_parsed = true;
+    //
+    //     // Parse charset if present
+    //     if let Some(ref headers) = self.http_headers {
+    //         if let Some(content_type) = headers.get("content-type") {
+    //             if let Some(charset_pos) = content_type.to_lowercase().find("charset=") {
+    //                 let charset_start = charset_pos + 8;
+    //                 let charset = content_type[charset_start..]
+    //                     .split(';')
+    //                     .next()
+    //                     .unwrap_or("")
+    //                     .trim()
+    //                     .to_lowercase();
+    //
+    //                 // Validate charset
+    //                 if !charset.is_empty() {
+    //                     self.http_charset = Some(charset);
+    //                 }
+    //             }
+    //         }
+    //     }
+    //
+    //     Ok(())
+    // }
+    //
+    // /// "Freeze" a record by baking in the remaining payload stream contents.
+    // ///
+    // /// Freezing a record makes the `WarcRecord` instance copyable and reusable by decoupling
+    // /// it from the underlying raw WARC stream. Instead of reading directly from the raw stream, a
+    // /// frozen record maintains an internal buffer the size of the remaining payload stream contents
+    // /// at the time of calling `freeze()`.
+    // ///
+    // /// Freezing a record will advance the underlying raw stream.
+    // pub fn freeze(&mut self) {
+    //     self.frozen = true;
+    // }
+    //
+    // /// Write WARC record onto a stream.
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `writer` - Output stream
+    // ///
+    // /// # Returns
+    // ///
+    // /// Number of bytes written
+    // pub fn write<W: Write>(&self, writer: &mut W) -> std::io::Result<usize> {
+    //     let mut bytes_written = 0;
+    //
+    //     // Write WARC headers
+    //     bytes_written += self.headers.write(writer)?;
+    //     writer.write_all(b"\r\n")?;
+    //     bytes_written += 2;
+    //
+    //     // Write HTTP headers if parsed
+    //     if self.http_parsed {
+    //         if let Some(ref http_headers) = self.http_headers {
+    //             bytes_written += http_headers.write(writer)?;
+    //             writer.write_all(b"\r\n")?;
+    //             bytes_written += 2;
+    //         }
+    //     }
+    //
+    //     // Write content
+    //     writer.write_all(&self.content)?;
+    //     bytes_written += self.content.len();
+    //
+    //     // Write record separator
+    //     writer.write_all(b"\r\n\r\n")?;
+    //     bytes_written += 4;
+    //
+    //     Ok(bytes_written)
+    // }
+    //
+    // /// Verify whether record digest is valid.
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `digest_str` - Digest string from header (e.g., "sha1:BASE32HASH")
+    // /// * `digest_type` - Type of digest (block or payload)
+    // ///
+    // /// # Returns
+    // ///
+    // /// `true` if digest exists and is valid
+    // pub fn verify_digest(&self, digest_str: &str, digest_type: DigestType) -> Result<bool, Box<dyn std::error::Error>> {
+    //     let parts: Vec<&str> = digest_str.splitn(2, ':').collect();
+    //     if parts.len() != 2 {
+    //         return Ok(false);
+    //     }
+    //
+    //     let algorithm = parts[0];
+    //     let expected_digest = parts[1];
+    //
+    //     let data = match digest_type {
+    //         DigestType::Block => &self.content,
+    //         DigestType::Payload => {
+    //             // For payload, would need to skip HTTP headers
+    //             &self.content
+    //         }
+    //     };
+    //
+    //     let computed = match algorithm {
+    //         "sha1" => {
+    //             use sha1::{Sha1, Digest};
+    //             let mut hasher = Sha1::new();
+    //             hasher.update(data);
+    //             base64::encode(hasher.finalize())
+    //         }
+    //         "md5" => {
+    //             use md5::{Md5, Digest};
+    //             let mut hasher = Md5::new();
+    //             hasher.update(data);
+    //             base64::encode(hasher.finalize())
+    //         }
+    //         _ => return Err(format!("Unsupported hash algorithm: {}", algorithm).into()),
+    //     };
+    //
+    //     Ok(computed == expected_digest)
+    // }
+}
 //
 // impl Default for WarcRecord {
 //     fn default() -> Self {

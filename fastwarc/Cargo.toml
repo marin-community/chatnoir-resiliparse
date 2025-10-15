@@ -9,3 +9,10 @@ description = "A high-performance WARC parsing library for Python written in C++
 
 [lib]
 crate-type = ["lib"]
+[dependencies]
+parking_lot = "0.12.5"
+uuid = "1.18.1"
+chrono = "0.4.42"
+sha1 = "0.11.0-rc.2"
+base64 = "0.22.1"
+itertools = "0.14.0"

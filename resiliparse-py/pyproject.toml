@@ -16,13 +16,11 @@ license = { text = "Apache License 2.0" }
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-  "fastwarc==0.15.2"
+  "fastwarc>=0.15.2"
 ]
 
 [project.urls]
-repository = "https://github.com/chatnoir-eu/chatnoir-resiliparse"
-homepage = "https://resiliparse.chatnoir.eu"
-documentation = "https://resiliparse.chatnoir.eu"
+repository = "https://github.com/marin-community/chatnoir-resiliparse"
 
 [project.optional-dependencies]
 all = [

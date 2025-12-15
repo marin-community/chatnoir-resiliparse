@@ -32,6 +32,7 @@ from resiliparse_inc.utility cimport move
 
 __all__ = [
     'extract_plain_text',
+    'extract_simplified_dom',
 ]
 
 
@@ -568,8 +569,16 @@ cdef inline bint _is_main_content_node(lxb_dom_node_t* node, size_t body_depth, 
             pnode = pnode.parent
         return False
 
+    # Lists in article content should be preserved regardless of depth
+    elif node.local_name == LXB_TAG_UL and node.parent and (
+        node.parent.local_name in [LXB_TAG_ARTICLE, LXB_TAG_MAIN] or
+        regex_search_not_empty(get_node_attr_sv(node.parent, b'class'), article_cls_regex)
+    ):
+        return True
+
+    # Original list depth check, but only for navigation/menu lists
     elif node.local_name == LXB_TAG_UL:
-        if body_depth < 4 or _is_link_cluster(node, 0.2, 0):
+        if _is_link_cluster(node, 1, 0):
             return False
 
     # Teaser articles
@@ -931,3 +940,191 @@ cdef string _extract_plain_text_impl(HTMLTree tree,
         ctx.node = next_node(ctx.root_node, ctx.node, &ctx.depth, &is_end_tag)
 
     return rstrip_str(_serialize_extract_nodes(extract_nodes, ctx.opts, <size_t>(chars_extracted * 1.2)))
+
+
+cdef string serialize_node(lxb_dom_node_t* node) nogil:
+    """
+    Serialize a DOM node to a C++ std::string without requiring the GIL.
+    Returns an empty string if serialization fails.
+    """
+    if node is NULL:
+        return string()
+
+    cdef lexbor_str_t* serialized_str = lexbor_str_create()
+    if not serialized_str:
+        return string()
+
+    cdef lxb_status_t status = lxb_html_serialize_tree_str(node, serialized_str)
+
+    if status != LXB_STATUS_OK:
+        lexbor_str_destroy(serialized_str, NULL, True)
+        return string()
+
+    cdef string html_str = string(<const char*>serialized_str.data, serialized_str.length)
+
+    lexbor_str_destroy(serialized_str, NULL, True)
+
+    return html_str
+
+
+def extract_simplified_dom(html,
+                          bint preserve_formatting=True,
+                          bint main_content=False,
+                          bint list_bullets=True,
+                          bint alt_texts=True,
+                          bint links=False,
+                          bint form_fields=False,
+                          bint noscript=False,
+                          bint comments=True,
+                          skip_elements=None):
+    """
+    extract_simplified_dom(html, preserve_formatting=True, main_content=False, list_bullets=True, alt_texts=True, \
+                       links=False, form_fields=False, noscript=False, comments=True, skip_elements=None)
+
+    Perform a simplified DOM extraction from the given HTML, returning cleaned HTML
+    with non-main-content elements removed. Follows the same filtering rules as extract_plain_text.
+
+    :param html: HTML as DOM tree or Unicode string
+    :type html: HTMLTree or str
+    :param preserve_formatting: preserve basic block-level formatting
+    :type preserve_formatting: bool
+    :param main_content: apply simple heuristics for extracting only "main-content" elements
+    :type main_content: bool
+    :param list_bullets: preserve list structure
+    :type list_bullets: bool
+    :param alt_texts: preserve alternative text descriptions
+    :type alt_texts: bool
+    :param links: preserve link elements
+    :type links: bool
+    :param form_fields: preserve form field elements
+    :type form_fields: bool
+    :param noscript: preserve contents of <noscript> elements
+    :type noscript: bool
+    :param comments: treat comment sections as main content
+    :type comments: bool
+    :param skip_elements: list of CSS selectors for elements to skip
+    :type skip_elements: t.Iterable[str] or None
+    :return: simplified HTML string
+    :rtype: str
+    """
+    cdef HTMLTree tree
+    if isinstance(html, str):
+        tree = HTMLTree.parse(html)
+    elif isinstance(html, HTMLTree):
+        tree = <HTMLTree>html
+    else:
+        raise TypeError('Parameter "html" is neither string nor HTMLTree.')
+
+    if not check_node(tree.body):
+        return ''
+
+    skip_selectors = {e.encode() for e in skip_elements or []}
+    skip_selectors.update({b'script', b'style', b'iframe', b'frame', b'template'})
+
+    if not alt_texts:
+        skip_selectors.update({b'object', b'video', b'audio', b'embed', b'img', b'area',
+                               b'svg', b'figcaption', b'figure'})
+    if not noscript:
+        skip_selectors.add(b'noscript')
+    if not form_fields:
+        skip_selectors.update({b'textarea', b'input', b'button', b'select', b'option', b'label', })
+
+    cdef string skip_selector = <string>b','.join(skip_selectors)
+
+    cdef string extracted
+    with nogil:
+        extracted = _extract_simplified_dom_impl(
+            tree,
+            FormattingOpts.FORMAT_OFF,
+            main_content,
+            list_bullets,
+            alt_texts,
+            links,
+            form_fields,
+            noscript,
+            comments,
+            skip_selector)
+    return extracted.decode(errors='ignore').replace('\x00', '')
+
+
+cdef string _extract_simplified_dom_impl(HTMLTree tree,
+                                       FormattingOpts preserve_formatting,
+                                       bint main_content,
+                                       bint list_bullets,
+                                       bint alt_texts,
+                                       bint links,
+                                       bint form_fields,
+                                       bint noscript,
+                                       bint comments,
+                                       string skip_selector) noexcept nogil:
+    """Internal simplified DOM extractor implementation not requiring GIL."""
+
+    cdef ExtractContext ctx
+    ctx.root_node = <lxb_dom_node_t*>tree.dom_document.body
+    ctx.node = ctx.root_node
+    ctx.opts = [
+        preserve_formatting,
+        list_bullets,
+        links,
+        alt_texts,
+        form_fields,
+        noscript]
+
+    if ctx.node.type == LXB_DOM_NODE_TYPE_DOCUMENT:
+        ctx.root_node = next_element_node(ctx.node, ctx.node.first_child)
+        ctx.node = ctx.root_node
+
+    cdef size_t base_depth = 0
+    cdef lxb_dom_node_t* pnode = ctx.node
+    while pnode.local_name != LXB_TAG_BODY and pnode.parent:
+        preinc(base_depth)
+        pnode = pnode.parent
+
+    cdef lxb_dom_collection_t* blacklist_coll = NULL
+    cdef stl_set[lxb_dom_node_t*] blacklisted_nodes
+    cdef lxb_dom_node_t* node
+    cdef lxb_dom_node_t* descendant
+    cdef size_t i
+
+    if skip_selector.size() > 0:
+        blacklist_coll = query_selector_all_impl(ctx.root_node, tree,
+                                               skip_selector.data(), skip_selector.size(), 30)
+        if blacklist_coll != NULL:
+            for i in range(lxb_dom_collection_length(blacklist_coll)):
+                node = lxb_dom_collection_node(blacklist_coll, i)
+                blacklisted_nodes.insert(node)
+                descendant = node.first_child
+                while descendant:
+                    blacklisted_nodes.insert(descendant)
+                    descendant = next_element_node(node, descendant)
+            lxb_dom_collection_destroy(blacklist_coll, True)
+
+    cdef bint is_end_tag = False
+    cdef lxb_dom_node_t* current = ctx.root_node
+    cdef lxb_dom_node_t* next_node_ptr = NULL
+    cdef lxb_dom_node_t* parent = NULL
+    cdef size_t depth = 0
+
+    while current:
+        parent = current.parent
+
+        if current.first_child:
+            next_node_ptr = current.first_child
+        elif current.next:
+            next_node_ptr = current.next
+        else:
+            next_node_ptr = parent
+            while next_node_ptr and not next_node_ptr.next:
+                next_node_ptr = next_node_ptr.parent
+            if next_node_ptr:
+                next_node_ptr = next_node_ptr.next
+
+        if current.type != LXB_DOM_NODE_TYPE_ELEMENT and current.type != LXB_DOM_NODE_TYPE_TEXT:
+            lxb_dom_node_remove(current)
+        elif blacklisted_nodes.find(current) != blacklisted_nodes.end() or \
+             (main_content and not _is_main_content_node(current, depth + base_depth, comments, True, False)):
+            lxb_dom_node_remove(current)
+
+        current = next_node_ptr
+
+    return serialize_node(ctx.root_node)

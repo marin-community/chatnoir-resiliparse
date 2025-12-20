@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=65.0", "Cython>=0.29.33"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "resiliparse"
+version = "0.17.2"
+description = "A collection of robust and fast processing tools for parsing and analyzing (not only) web archive data."
+authors = [
+  { name = "Janek Bevendorff" }
+]
+license = { text = "Apache License 2.0" }
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.urls]
+repository = "https://github.com/chatnoir-eu/chatnoir-resiliparse"
+homepage = "https://resiliparse.chatnoir.eu"
+documentation = "https://resiliparse.chatnoir.eu"
+
+[project.optional-dependencies]
+all = [
+  "resiliparse"
+]
+test = [
+  "pytest>=7.2.2",
+  "pytest-cov>=4.0.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["resiliparse*"]
+
+[tool.cibuildwheel]
+archs = "native"
+build = "cp3*"
+build-frontend = "build"
+test-extras = ["all", "test"]
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_x86_64"
+
+  [tool.cibuildwheel.overrides.environment]
+  CPATH = "/usr/local/share/vcpkg/installed/x64-osx/include"
+  LIBRARY_PATH = "/usr/local/share/vcpkg/installed/x64-osx/lib"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_arm64"
+
+  [tool.cibuildwheel.overrides.environment]
+  CPATH = "/usr/local/share/vcpkg/installed/arm64-osx/include"
+  LIBRARY_PATH = "/usr/local/share/vcpkg/installed/arm64-osx/lib"
+
+[tool.cibuildwheel.windows.environment]
+INCLUDE = 'C:\\vcpkg\\installed\\x64-windows\\include'
+LIB = 'C:\\vcpkg\\installed\\x64-windows\\lib'

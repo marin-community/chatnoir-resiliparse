@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-13 ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
     env:
       CIBW_BUILD: "cp311-* cp312-*"
       CIBW_SKIP: "*-musllinux*"
@@ -143,13 +143,73 @@ jobs:
         if: success()
         run: |
           VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\/v//')
-          
+
           git config --global user.name "GitHub Actions"
           git config --global user.email "github-actions@github.com"
-          
+
           # For a regular release, the tag would already exist
           # This step is mainly useful for hotfixes or specific version pushes
           if ! git show-ref --tags v$VERSION; then
             git tag -a v$VERSION -m "Version $VERSION"
             git push origin v$VERSION
           fi
+
+  publish-pypi-index:
+    runs-on: ubuntu-latest
+    needs: [ build-wheels, build-wheels-aarch64 ]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: Download Wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: ./wheels
+
+      - name: Generate PyPI Index
+        run: |
+          mkdir -p simple/resiliparse
+
+          cat > simple/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>Simple Index</title></head>
+          <body>
+            <a href="resiliparse/">resiliparse</a>
+          </body>
+          </html>
+          EOF
+
+          cat > simple/resiliparse/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>Links for resiliparse</title></head>
+          <body>
+            <h1>Links for resiliparse</h1>
+          EOF
+
+          for wheel in wheels/*.whl; do
+            if [ -f "$wheel" ]; then
+              filename=$(basename "$wheel")
+              echo "    <a href=\"../../wheels/$filename\">$filename</a><br/>" >> simple/resiliparse/index.html
+            fi
+          done
+
+          cat >> simple/resiliparse/index.html << 'EOF'
+          </body>
+          </html>
+          EOF
+
+      - name: Commit and Push
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+          git add simple/ wheels/
+          git commit -m "Update PyPI index for build ${{ github.sha }}" || echo "No changes to commit"
+          git push

@@ -19,6 +19,7 @@
 
 pub mod css;
 pub mod dom;
+pub mod extract;
 pub mod tree;
 
 mod lexbor;

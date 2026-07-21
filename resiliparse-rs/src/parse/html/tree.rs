@@ -158,21 +158,29 @@ impl HTMLTree {
     /// Get HTML `<head>` element node.
     pub fn head(&self) -> Option<ElementNode> {
         let ptr = self.get_html_document_ptr();
-        if !ptr.is_null() {
-            Some(ElementNode::new(&self.doc, unsafe { *ptr }.head.cast()))
-        } else {
-            None
+        if ptr.is_null() {
+            return None;
         }
+        let head = unsafe { *ptr }.head;
+        if head.is_null() {
+            // e.g. a document lexbor could not give a head element
+            return None;
+        }
+        Some(ElementNode::new(&self.doc, head.cast()))
     }
 
     /// Get HTML `<body>` element node.
     pub fn body(&self) -> Option<ElementNode> {
         let ptr = self.get_html_document_ptr();
-        if !ptr.is_null() {
-            Some(ElementNode::new(&self.doc, unsafe { *ptr }.body.cast()))
-        } else {
-            None
+        if ptr.is_null() {
+            return None;
         }
+        let body = unsafe { *ptr }.body;
+        if body.is_null() {
+            // e.g. a <frameset> document: the HTML spec gives it no body element
+            return None;
+        }
+        Some(ElementNode::new(&self.doc, body.cast()))
     }
 
     /// Get HTML `<title>` contents as string.

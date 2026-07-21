@@ -12,6 +12,7 @@ license.workspace = true
 
 [dependencies]
 parking_lot = "0.12.5"
+rapidfuzz = "0.5.0"
 
 [build-dependencies]
 bindgen.workspace = true
